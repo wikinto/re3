@@ -368,17 +368,31 @@ project "reVC"
 		staticruntime "off"
 		
 	filter "platforms:*glfw*"
-		premake.modules.autoconf.parameters = "-lglfw -lX11"
-		autoconfigure {
-			-- iterates all configs and runs on them
-			["dontWrite"] = function (cfg)
-				check_symbol_exists(cfg, "haveX11", "glfwGetX11Display", { "X11/Xlib.h", "X11/XKBlib.h", "GLFW/glfw3.h", "GLFW/glfw3native.h" }, "GLFW_EXPOSE_NATIVE_X11")
+	do
+		local sess = (os.getenv("XDG_SESSION_TYPE") or ""):lower()
+		local is_wayland = (sess == "wayland")
+
+		if (os.target() == "linux" or os.target() == "bsd") and not is_wayland then
+			premake.modules.autoconf.parameters = "-lglfw -lX11"
+			autoconfigure {
+				["dontWrite"] = function (cfg)
+				check_symbol_exists(cfg, "haveX11", "glfwGetX11Display",{ "X11/Xlib.h", "X11/XKBlib.h", "GLFW/glfw3.h", "GLFW/glfw3native.h" }, "GLFW_EXPOSE_NATIVE_X11")
 				if cfg.autoconf["haveX11"] ~= nil and cfg.autoconf["haveX11"] == 1 then
 					table.insert(cfg.links, "X11")
 					table.insert(cfg.defines, "GET_KEYBOARD_INPUT_FROM_X11")
+					end
+					end
+			}
+			else
+				premake.modules.autoconf.parameters = "-lglfw"
+				autoconfigure {
+					["dontWrite"] = function (cfg)
+					cfg.autoconf["haveX11"] = 0
+					end
+				}
 				end
-			end
-		}
+				end
+
 
 	filter "platforms:win*oal"
 		includedirs { "vendor/openal-soft/include" }
