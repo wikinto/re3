@@ -847,33 +847,49 @@ psSelectDevice()
 		RwInt32 bestWidth = -1;
 		RwInt32 bestHeight = -1;
 		RwInt32 bestDepth = -1;
-		for(GcurSelVM = 0; GcurSelVM < RwEngineGetNumVideoModes(); GcurSelVM++){
+		RwInt32 firstWindowed = -1;
+
+		for (GcurSelVM = 0; GcurSelVM < RwEngineGetNumVideoModes(); GcurSelVM++){
 			RwEngineGetVideoModeInfo(&vm, GcurSelVM);
 
-			if (!(vm.flags & rwVIDEOMODEEXCLUSIVE)){
-				bestWndMode = GcurSelVM;
-			} else {
-				// try the largest one that isn't larger than what we wanted
-				if(vm.width >= bestWidth && vm.width <= FrontEndMenuManager.m_nPrefsWidth &&
-				   vm.height >= bestHeight && vm.height <= FrontEndMenuManager.m_nPrefsHeight &&
-				   vm.depth >= bestDepth && vm.depth <= FrontEndMenuManager.m_nPrefsDepth){
-					bestWidth = vm.width;
-					bestHeight = vm.height;
-					bestDepth = vm.depth;
-					bestFsMode = GcurSelVM;
-				}
-			}
+		    if (!(vm.flags & rwVIDEOMODEEXCLUSIVE)) {
+		        if (firstWindowed < 0) firstWindowed = GcurSelVM;
+		        bestWndMode = GcurSelVM;
+		    } else {
+		        if (vm.width  >= bestWidth  && vm.width  <= FrontEndMenuManager.m_nPrefsWidth &&
+		            vm.height >= bestHeight && vm.height <= FrontEndMenuManager.m_nPrefsHeight &&
+		            vm.depth  >= bestDepth  && vm.depth  <= FrontEndMenuManager.m_nPrefsDepth) {
+		            bestWidth  = vm.width;
+		            bestHeight = vm.height;
+		            bestDepth  = vm.depth;
+		            bestFsMode = GcurSelVM;
+		        }
+		    }
 		}
 
-		if(bestFsMode < 0){
-			printf("WARNING: Cannot find desired video mode, selecting device cancelled\n");
-			return FALSE;
+		if (bestFsMode < 0) {
+		    const GLFWvidmode *pmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		    if (pmode) {
+		        FrontEndMenuManager.m_nPrefsWidth  = pmode->width;
+		        FrontEndMenuManager.m_nPrefsHeight = pmode->height;
+		        FrontEndMenuManager.m_nPrefsDepth  = 32;
+		    }
+		    if (firstWindowed >= 0)
+		        bestWndMode = firstWindowed;
+
+		    FrontEndMenuManager.m_nPrefsWindowed = 1;
+		    GcurSelVM = (bestWndMode >= 0) ? bestWndMode : 0;
+
+		    printf("WARNING: Exclusive fullscreen not available; falling back to windowed %dx%dx%d.\n",
+		           FrontEndMenuManager.m_nPrefsWidth,
+		           FrontEndMenuManager.m_nPrefsHeight,
+		           FrontEndMenuManager.m_nPrefsDepth);
+		} else {
+		    GcurSelVM = bestFsMode;
 		}
-		GcurSelVM = bestFsMode;
 
 		FrontEndMenuManager.m_nDisplayVideoMode = GcurSelVM;
-		FrontEndMenuManager.m_nPrefsVideoMode = FrontEndMenuManager.m_nDisplayVideoMode;
-
+		FrontEndMenuManager.m_nPrefsVideoMode   = FrontEndMenuManager.m_nDisplayVideoMode;
 		FrontEndMenuManager.m_nSelectedScreenMode = FrontEndMenuManager.m_nPrefsWindowed;
 	}
 #endif
@@ -881,9 +897,13 @@ psSelectDevice()
 	RwEngineGetVideoModeInfo(&vm, GcurSelVM);
 
 #ifdef IMPROVED_VIDEOMODE
-	if (FrontEndMenuManager.m_nPrefsWindowed)
-		GcurSelVM = bestWndMode;
+	if (FrontEndMenuManager.m_nPrefsWindowed) {
+		if (bestWndMode >= 0)
+			GcurSelVM = bestWndMode;
+	}
 
+	// vm refresh
+	RwEngineGetVideoModeInfo(&vm, GcurSelVM);
 	// Now GcurSelVM is 0 but vm has sizes(and fullscreen flag) of the video mode we want, that's why we changed the rwVIDEOMODEEXCLUSIVE conditions below
 	FrontEndMenuManager.m_nPrefsWidth = vm.width;
 	FrontEndMenuManager.m_nPrefsHeight = vm.height;
